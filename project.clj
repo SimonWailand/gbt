@@ -1,5 +1,6 @@
 (defproject org.clojars.simonwailand/gbt "0.1.0-SNAPSHOT"
   :description "A library for manipulating Generalized Balanced Ternary"
+  :url "https://github.com/SimonWailand/gbt"
 
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}

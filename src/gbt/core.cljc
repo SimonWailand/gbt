@@ -43,6 +43,16 @@
   (sub [sp a] [sp a b])
   (mul [sp a] [sp a b]))
 
+;;; Convert a digit to a string
+;; Default converter. first argument is the base.
+(def ^:dynamic *to-string*
+  (fn [n x]
+    #?(:clj (Long/toString x n)
+       :cljs (.toString x n))))
+
+(defn set-string-converter! [f]
+  (alter-var-root #'*to-string* f))
+
 ;; Some helpful addresses that are the valid in all dimensions
 (def ^:const origin [0])
 (def ^:const one [1])
@@ -66,7 +76,11 @@
       (mapv #(mod (quot x %) radix)
             (take-while #(>= x %) pows))))
 
-  (address->string [_ a] (apply str (rseq a)))
+  (address->string [_ a]
+    (->> a
+         rseq
+         (map (partial *to-string* radix))
+         (apply str)))
   (address->int [_ a] (apply + (map * a pows)))
 
   (conform [_ a] (mapv #(bit-and radix %) a))
@@ -125,6 +139,22 @@
                                    (map #(nth mul-lut (+ offset %)) b)))))
                   a)))))
 
+;; Test the heck out of this, this is for pinning the gbt space when
+;; calling this library from another namespace. Not sure if this will work
+;; TODO: figure out the namespacing issue and get the splices right
+#_(defmacro bind [sp]
+  `(do
+     (def int->address (partial int->address ~@sp))
+     (def address->string (partial address->string ~@sp))
+     (def address->int (partial address->int ~s@p))
+
+     (def conform (partial conform ~@sp))
+
+     (def inv (partial inv ~@sp))
+     (def add (partial add ~@sp))
+     (def sub (partial sub ~@sp))
+     (def mul (partial mul ~@sp))))
+
 ;;; Helper functions and constants for defining space properties
 
 ;; The integer limit for addresses. Java Long/MAX_VALUE is larger
@@ -161,16 +191,14 @@
 
 ;; The ocean of performance enhancements that could be done here is
 ;; vast and deep. I'm using look-up-tables for the operations.
-;; At the moment we only support dimensions 1, 2, 3, & 4 because
-;; GBT4 is base 2^(4+1)-1 = 31 and both Java and Javascript only
-;; handle string conversions up to base 36 (GBT5 is base 63).
-;; Need a custom string parser to handle Base64 and beyond.
+;; Note that GBT4 is base 2^(4+1)-1 = 31 and both Java and Javascript
+;; only handle string conversions up to base 36. You must define a
+;; custom string parser to handle GBT5+ using (set-string-converter!).
 (defn create-space
   "Constructor for a Space record. Takes a dimension
   and then derives several values that are used for
   performing operations on addresses in the space."
   [dim]
-  {:pre [(and (int? dim) (<= 1 dim 4))]}
   (let [bits          (inc dim)
         radix         (dec (bit-shift-left 1 bits))
         digits        (vec (range radix))
